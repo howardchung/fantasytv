@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import './App.css';
 import axios from 'axios';
 
+const serverPath = 'https://vivacious-underwear-newt.cyclic.app';
+
 function App() {
   const [contestantStatus, setContestantStatus] = useState([]);
   useEffect(() => {
     async function getData() {
-      const response = await axios.get('/contestantStatus');
+      const response = await axios.get(serverPath + '/contestantStatus');
       setContestantStatus(response.data);
     }
     getData();
@@ -14,7 +16,7 @@ function App() {
   const [episodes, setEpisodes] = useState([]);
   useEffect(() => {
     async function getData() {
-      const response = await axios.get('/episodes');
+      const response = await axios.get(serverPath + '/episodes');
       setEpisodes(response.data);
     }
     getData();

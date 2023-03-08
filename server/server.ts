@@ -40,6 +40,12 @@ app.get('/bracket', async (req, res) => {
   const result = await client.query('SELECT * from bracket');
   return res.json(result.rows);
 });
+app.get('/episodes', async (req, res) => {
+  const client = new Client(process.env.POSTGRES_URL)
+  await client.connect();
+  const result = await client.query('SELECT * from episode');
+  return res.json(result.rows);
+});
 app.post('/bracket', (req, res) => {
   // TODO edit bracket
 }); 
