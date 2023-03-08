@@ -49,7 +49,7 @@ async function refetch() {
   const client = new Client(process.env.POSTGRES_URL)
   await client.connect();
   // TODO upsert more shows
-  await upsertObject(client, 'show', { name: 'The Bachelor', season: 27 }, { name: true, season: true });
+await upsertObject(client, 'show', { name: 'The Bachelor', season: 27 }, { name: true, season: true });
 const data = await axios.get('https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)');
 // Parse table data
 // parses HTML
@@ -58,18 +58,22 @@ var $ = cheerio.load(data.data);
 var number_of_columns = 15;
 
 // upsert episodes
-let ep_table = $('span#Episodes').parent().next();
+let ep_table = $('span#Episodes').parent().nextAll('table').first();
 const eps: any[] = [];
 ep_table.find('tbody tr').map(function(tr_index) {
   // gets the cells value for the row; loops through each cell and returns an array of values
+  if (tr_index === 0) {
+    return;
+  }
   const row: any = {show_id: 1};
   $(this).find('td').each((i, el) => {
-    if (i === 1) {
+    if (i === 0) {
       row['num'] = $(el).text().trim();
-    } else if (i === 2) {
+    } else if (i === 1) {
       row['name'] = $(el).text().trim();
-    } else if (i === 3) {
-      row['airdate'] = new Date($(el).text().trim());
+    } else if (i === 2) {
+      const airdate = $(el).text().split('(')[0].replace(/\xA0/g,' ');
+      row['airdate'] = new Date(airdate);
     }
   });
   eps.push(row);
@@ -80,7 +84,7 @@ for (let i = 0; i < eps.length; i++) {
 }
 
 // targets the specific table with a selector
-var html_table = $('span#Call-out_order').parent().next();
+var html_table = $('span#Call-out_order').parent().next('table');
 // gets table header titles; loops through all th data, and pulls an array of the values
 // var table_header = html_table.find('th').map(function() {return $(this).text().trim();}).toArray();
 // removes columns after the number of columns specified
