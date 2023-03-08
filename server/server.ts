@@ -14,35 +14,31 @@ import cors from 'cors';
 // Episode data
 // https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)
 
+const client = new Client(process.env.POSTGRES_URL)
+await client.connect();
+
 const app = express();
 app.use(cors());
-app.all('/refetch', (req, res) => {
-  refetch();
+app.all('/refetch', async (req, res) => {
+  await refetch();
+  res.json({});
 });
 app.post('/rescore', (req, res) => {
 
 });
 app.get('/shows', async (req, res) => {
-  const client = new Client(process.env.POSTGRES_URL)
-  await client.connect();
   const result = await client.query('SELECT * from show');
   return res.json(result.rows);
 });
 app.get('/contestants', async (req, res) => {
-  const client = new Client(process.env.POSTGRES_URL)
-  await client.connect();
   const result = await client.query('SELECT * from constestant');
   return res.json(result.rows);
 });
 app.get('/bracket', async (req, res) => {
-  const client = new Client(process.env.POSTGRES_URL)
-  await client.connect();
   const result = await client.query('SELECT * from bracket');
   return res.json(result.rows);
 });
 app.get('/episodes', async (req, res) => {
-  const client = new Client(process.env.POSTGRES_URL)
-  await client.connect();
   const result = await client.query('SELECT * from episode');
   return res.json(result.rows);
 });
