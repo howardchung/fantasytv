@@ -31,7 +31,7 @@ app.get('/shows', async (req, res) => {
   return res.json(result.rows);
 });
 app.get('/contestants', async (req, res) => {
-  const result = await client.query('SELECT * from constestant');
+  const result = await client.query('SELECT * from contestant');
   return res.json(result.rows);
 });
 app.get('/bracket', async (req, res) => {
