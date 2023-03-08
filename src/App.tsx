@@ -1,24 +1,28 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, { useEffect, useState } from 'react';
 import './App.css';
+import axios from 'axios';
 
 function App() {
+  const [contestantStatus, setContestantStatus] = useState([]);
+  useEffect(() => {
+    async function getData() {
+      const response = await axios.get('/contestantStatus');
+      setContestantStatus(response.data);
+    }
+    getData();
+  }, []);
+  const [episodes, setEpisodes] = useState([]);
+  useEffect(() => {
+    async function getData() {
+      const response = await axios.get('/episodes');
+      setEpisodes(response.data);
+    }
+    getData();
+  }, []);
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      {JSON.stringify(episodes)}
+      {JSON.stringify(contestantStatus)}
     </div>
   );
 }
