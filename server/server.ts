@@ -15,7 +15,7 @@ import cors from 'cors';
 // https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)
 
 const client = new Client(process.env.POSTGRES_URL)
-await client.connect();
+client.connect();
 
 const app = express();
 app.use(cors());
