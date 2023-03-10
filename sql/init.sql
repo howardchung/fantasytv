@@ -31,11 +31,12 @@ CREATE TABLE contestant_status(
     PRIMARY KEY(episode_id, contestant_id)
 );
 
-CREATE TABLE bracket(
+CREATE TABLE pick(
     uid text,
     episode_id int,
     contestant_id int,
-    picks int[]
+    is_on boolean,
+    PRIMARY KEY (episode_id, uid, contestant_id)
 );
 
 CREATE TABLE raw_contestant_status(
@@ -44,4 +45,11 @@ CREATE TABLE raw_contestant_status(
     episode int,
     is_on boolean,
     PRIMARY KEY(show_id, name, episode)
+);
+
+CREATE TABLE score(
+    show_id int REFERENCES show(id),
+    uid text,
+    score int,
+    PRIMARY KEY(show_id, uid)
 );
