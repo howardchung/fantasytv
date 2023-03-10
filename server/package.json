@@ -3,22 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@types/cors": "^2.8.13",
-    "@types/express": "^4.17.17",
-    "@types/node": "^16.18.11",
-    "@types/pg": "^8.6.6",
-    "axios": "^1.2.4",
-    "cheerio": "^1.0.0-rc.12",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "pg": "^8.10.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^4.9.4"
   },
   "scripts": {
-    "start": "node server.js",
-    "build": "pushd ../ && npm run build && popd && tsc --project tsconfig.json",
-    "dev": "PORT=8082 ts-node-dev server.ts"
+    "start": "node server.js"
   }
 }
