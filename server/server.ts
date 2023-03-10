@@ -18,6 +18,7 @@ const client = new Client(process.env.POSTGRES_URL)
 client.connect();
 
 const app = express();
+app.use(express.static('../build');
 app.use(cors());
 app.all('/refetch', async (req, res) => {
   await refetch();

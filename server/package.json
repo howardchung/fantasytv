@@ -1,5 +1,5 @@
 {
-  "name": "fantasytv",
+  "name": "fantasytv-server",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -18,25 +18,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "build": "tsc --project tsconfig.json",
+    "build": "pushd ../ && npm run build && popd && tsc --project tsconfig.json",
     "dev": "PORT=8082 ts-node-dev server.ts"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
   }
 }
