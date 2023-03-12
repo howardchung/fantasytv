@@ -184,7 +184,8 @@ for (let i = 0; i < result.length; i++) {
 }
 }
 
-const multiplier = [0, 0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40];
+const multiplier = [0, 0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20];
+const expected = [30, 20, 17, 14, 11, 9, 7, 4, 4, 3, 2, 1];
 async function rescore() {
   // TODO implement scoring
   const client = new Client(process.env.POSTGRES_URL)

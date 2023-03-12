@@ -25,7 +25,7 @@ function App() {
   useEffect(() => {
     async function getData() {
       const response = await axios.get(serverPath + '/episodes');
-      setEpisodes(response.data);
+      setEpisodes(response.data.filter((ep: any) => ep.num !== 1));
     }
     getData();
   }, []);
@@ -76,7 +76,7 @@ function App() {
         <tr>
           <td>Name</td>
           {episodes.map((ep: any) => {
-            return <td key={ep.id} style={{ width: 100}}>
+            return <td key={ep.id} style={{ width: 80}}>
               <div>{ep.name}</div>
               <div>{new Date(ep.airdate).toLocaleDateString()}</div>
             </td>
