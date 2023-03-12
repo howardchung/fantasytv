@@ -6,14 +6,9 @@ import {Client, QueryResult} from 'pg';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 
-// TODO implement google signin
-// https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid
-
-const client = new Client(process.env.POSTGRES_URL)
-client.connect();
+// TODO implement firebase login
 
 const app = express();
-app.use(express.static('./build'));
 app.use(cors());
 app.use(bodyParser.json());
 app.all('/refetch', async (req, res) => {
@@ -25,23 +20,28 @@ app.all('/rescore', async (req, res) => {
   res.json({});
 });
 app.get('/shows', async (req, res) => {
+  const client = await getDBClient();
   const result = await client.query('SELECT * from show');
   return res.json(result.rows);
 });
 app.get('/contestants', async (req, res) => {
+  const client = await getDBClient();
   const result = await client.query('SELECT * from contestant');
   return res.json(result.rows);
 });
 app.get('/bracket', async (req, res) => {
+  const client = await getDBClient();
   const result = await client.query('SELECT * from bracket');
   return res.json(result.rows);
 });
 app.get('/episodes', async (req, res) => {
+  const client = await getDBClient();
   const result = await client.query('SELECT * from episode');
   return res.json(result.rows);
 });
 app.get('/contestantStatus', async (req, res) => {
-// TODO Join the data to get the clean contestant status
+// Join the data to get the clean contestant status, currently not stored in table but we have one
+const client = await getDBClient();
 const contestantStatus = await client.query(`
   SELECT contestant.id as contestant_id, 
   episode.id as episode_id,
@@ -53,14 +53,16 @@ const contestantStatus = await client.query(`
 res.json(contestantStatus.rows);
 });
 app.get('/picks', async (req, res) => {
-  // TODO filter by user id
+  // TODO filter by real user id
+  const client = await getDBClient();
   const result = await client.query(`SELECT * from pick WHERE uid = '1'`);
   res.json(result.rows);
 });
 app.post('/picks', async (req, res) => {
   // TODO allow setting user ID + validate
   // TODO only allow setting picks that aren't locked
-  console.log(req.body);
+  const client = await getDBClient();
+  // console.log(req.body);
   for(let i = 0; i < req.body.length; i++) {
     const pick = req.body[i];
     pick.uid = '1';
@@ -70,6 +72,9 @@ app.post('/picks', async (req, res) => {
 app.get('/leaderboard', (req, res) => {
   // TODO implement leaderboard
 });
+// TODO allow admins to set unlocks
+// TODO create self-service leagues
+app.use(express.static('./build'));
 app.listen(process.env.PORT || 3000);
 
 if (process.env.NODE_ENV === 'development') {
@@ -82,6 +87,8 @@ async function refetch() {
   // TODO upsert more shows
 const showResult = await upsertObject(client, 'show', { name: 'The Bachelor', season: 27 }, { name: true, season: true });
 const showId = showResult.rows[0].id;
+// TODO create default league for each show
+
 const data = await axios.get('https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)');
 // Parse table data
 var $ = cheerio.load(data.data);
@@ -156,6 +163,8 @@ for (let i = 0; i < result.length; i++) {
 
 async function rescore() {
   // TODO implement scoring
+  const client = new Client(process.env.POSTGRES_URL)
+  await client.connect();
 }
 
 export async function upsertObject(
@@ -178,4 +187,14 @@ export async function upsertObject(
   // console.log(query);
   const result = await postgres.query(query, values);
   return result;
+}
+
+let singleClient: Client = null as any;
+export async function getDBClient() {
+  if (singleClient) {
+    return singleClient;
+  }
+  singleClient = new Client(process.env.POSTGRES_URL);
+  await singleClient.connect();
+  return singleClient;
 }
