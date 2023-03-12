@@ -37,6 +37,14 @@ function App() {
     }
     getData();
   }, []);
+  const [leaderboard, setLeaderboard] = useState<[]>([]);
+  useEffect(() => {
+    async function getData() {
+      const response = await axios.get(serverPath + '/leaderboard');
+      setLeaderboard(response.data);
+    }
+    getData();
+  }, []);
 
   const sortedContestants = useMemo(() => [...contestants].sort((a: any, b: any) => {
     const aCount = contestantStatus.filter((cs: any) => cs.contestant_id === a.id && cs.is_on).length;
@@ -58,6 +66,7 @@ function App() {
     }
     setPicks(newPicks);
     // submit to server
+    // TODO only send changed pick
     await axios.post(serverPath + '/picks', newPicks);
   };
   return (
@@ -88,6 +97,7 @@ function App() {
         })}
         </tbody>
       </table>
+      <div>{JSON.stringify(leaderboard)}</div>
     </div>
   );
 }

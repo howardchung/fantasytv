@@ -9,6 +9,7 @@ import bodyParser from 'body-parser';
 // TODO implement firebase login
 
 const app = express();
+app.use(express.static('./build'));
 app.use(cors());
 app.use(bodyParser.json());
 app.all('/refetch', async (req, res) => {
@@ -41,21 +42,13 @@ app.get('/episodes', async (req, res) => {
 });
 app.get('/contestantStatus', async (req, res) => {
 // Join the data to get the clean contestant status, currently not stored in table but we have one
-const client = await getDBClient();
-const contestantStatus = await client.query(`
-  SELECT contestant.id as contestant_id, 
-  episode.id as episode_id,
-  is_on
-  FROM raw_contestant_status
-  LEFT JOIN contestant on contestant.name = raw_contestant_status.name
-  LEFT JOIN episode on raw_contestant_status.episode = episode.num AND raw_contestant_status.show_id = episode.show_id
-`);
-res.json(contestantStatus.rows);
+res.json(await getContestantStatus());
 });
 app.get('/picks', async (req, res) => {
-  // TODO filter by real user id
+  // TODO filter by real user id and league
+  // TODO return whether pick is editable
   const client = await getDBClient();
-  const result = await client.query(`SELECT * from pick WHERE uid = '1'`);
+  const result = await client.query(`SELECT * from pick WHERE uid = 'asdf' AND league_id = 1`);
   res.json(result.rows);
 });
 app.post('/picks', async (req, res) => {
@@ -65,29 +58,59 @@ app.post('/picks', async (req, res) => {
   // console.log(req.body);
   for(let i = 0; i < req.body.length; i++) {
     const pick = req.body[i];
-    pick.uid = '1';
-    await upsertObject(client, 'pick', pick, { uid: true, episode_id: true, contestant_id: true});
+    const isPickEditable = true;
+    pick.uid = 'asdf';
+    pick.league_id = 1;
+    await upsertObject(client, 'pick', pick, { league_id: true, episode_id: true, uid: true, contestant_id: true});
   }
 });
-app.get('/leaderboard', (req, res) => {
-  // TODO implement leaderboard
+app.get('/leaderboard', async (req, res) => {
+  // TODO pass in league id
+  const client = await getDBClient();
+  const leagueId = 1;
+  const result = await client.query(`SELECT * from league_account WHERE league_id = $1`, [leagueId]);
+  res.json(result.rows);
 });
 // TODO allow admins to set unlocks
-// TODO create self-service leagues
-app.use(express.static('./build'));
+app.post('/league', async (req, res) => {
+  const client = await getDBClient();
+  // TODO accept show param
+  const showId = 1;
+  const admins: string[] = [];
+  await upsertObject(client, 'league', {show_id: showId, admin_uids: admins});
+});
 app.listen(process.env.PORT || 3000);
 
 if (process.env.NODE_ENV === 'development') {
-  refetch();
+  rescore();
+  // refetch();
 }
 
+async function getContestantStatus() {
+  const client = await getDBClient();
+  const contestantStatus = await client.query(`
+  SELECT contestant.id as contestant_id, 
+  episode.id as episode_id,
+  is_on
+  FROM raw_contestant_status
+  LEFT JOIN contestant on contestant.name = raw_contestant_status.name
+  LEFT JOIN episode on raw_contestant_status.episode = episode.num AND raw_contestant_status.show_id = episode.show_id
+`);
+return contestantStatus.rows;
+}
+
+// TODO pass in show to refetch
 async function refetch() {
   const client = new Client(process.env.POSTGRES_URL)
   await client.connect();
-  // TODO upsert more shows
+
+  // Create default user
+  await upsertObject(client, 'account', {uid: 'asdf', img: '', email: ''}, {uid: true});
+
 const showResult = await upsertObject(client, 'show', { name: 'The Bachelor', season: 27 }, { name: true, season: true });
 const showId = showResult.rows[0].id;
-// TODO create default league for each show
+// Create default league for show
+await upsertObject(client, 'league', {id: 1, show_id: showId, admin_uids: []}, {id: true});
 
 const data = await axios.get('https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)');
 // Parse table data
@@ -161,28 +184,58 @@ for (let i = 0; i < result.length; i++) {
 }
 }
 
+const multiplier = [0, 0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40];
 async function rescore() {
   // TODO implement scoring
   const client = new Client(process.env.POSTGRES_URL)
   await client.connect();
+  const check = await client.query(`
+  SELECT contestant.id as contestant_id, 
+  episode.id as episode_id,
+  raw_contestant_status.is_on as answer,
+  episode.num,
+  pick.is_on as guess
+  FROM raw_contestant_status
+  LEFT JOIN contestant on contestant.name = raw_contestant_status.name
+  LEFT JOIN episode on raw_contestant_status.episode = episode.num AND raw_contestant_status.show_id = episode.show_id
+  JOIN pick on episode.id = pick.episode_id AND contestant.id = pick.contestant_id AND pick.league_id = 1 AND pick.uid = 'asdf';
+`);
+  console.log(check.rows);
+  let score = 0;
+  for (let i = 0; i < check.rows.length; i++) {
+    // Options:
+    // Limit the number of picks made per week (prevent people from just picking everyone)
+    // Apply a penalty for picking incorrectly (doubly affects people who pick an incorrect, e.g. picking 3 right is better as picking 4 and getting 1 wrong) 
+    // Maybe penalize half value for an incorrect pick?
+    // Multiply episode value by % correct
+    // TODO need to match up with next episode is_on
+    if (check.rows[i].guess === check.rows[i].answer) {
+      score += multiplier[check.rows[i].num - 1];
+    }
+  }
+  console.log(score);
+  await upsertObject(client, 'league_account', {league_id: 1, uid: 'asdf', score}, {league_id: true, uid: true});
 }
 
 export async function upsertObject(
   postgres: Client,
   table: string,
   object: any,
-  conflict: any
+  conflict?: any
 ): Promise<QueryResult<any>> {
   const columns = Object.keys(object);
   const values = Object.values(object);
+  const conflictQ = conflict ? `
+  ON CONFLICT (${Object.keys(conflict)
+    .map((k) => `"${k}"`)
+    .join(',')})
+  DO UPDATE SET ${Object.keys(object)
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(',')}
+  ` : '';
   let query = `INSERT INTO ${table} (${columns.map((c) => `"${c}"`).join(',')})
     VALUES (${values.map((_, i) => '$' + (i + 1)).join(',')})
-    ON CONFLICT (${Object.keys(conflict)
-      .map((k) => `"${k}"`)
-      .join(',')})
-    DO UPDATE SET ${Object.keys(object)
-      .map((c) => `"${c}" = EXCLUDED."${c}"`)
-      .join(',')}
+    ${conflictQ}
     RETURNING *`;
   // console.log(query);
   const result = await postgres.query(query, values);
