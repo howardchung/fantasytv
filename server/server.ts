@@ -202,6 +202,12 @@ async function rescore() {
   JOIN pick on episode.id = pick.episode_id AND contestant.id = pick.contestant_id AND pick.league_id = 1 AND pick.uid = 'asdf';
 `);
   console.log(check.rows);
+  // TODO picking semantics
+  // Either we pick "who will be on this episode"
+  // If so we need to add an extra dummy "winner" at the end
+  // Matches up with is_on db state and green state we display on table
+  // Or we pick "who survives this episode"
+  // This doesn't match up with the is_on state so scoring is a bit more complicated since we need to compute whether the contestant advanced
   let score = 0;
   for (let i = 0; i < check.rows.length; i++) {
     // Options:

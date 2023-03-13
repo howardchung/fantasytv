@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
 import axios from 'axios';
+import { next } from 'cheerio/lib/api/traversing';
 
 const serverPath = process.env.REACT_APP_SERVER_PATH ?? 'https://vivacious-underwear-newt.cyclic.app';
 
@@ -25,7 +26,7 @@ function App() {
   useEffect(() => {
     async function getData() {
       const response = await axios.get(serverPath + '/episodes');
-      setEpisodes(response.data.filter((ep: any) => ep.num !== 1));
+      setEpisodes(response.data.filter((ep: any) => ep.name.startsWith('"Week')));
     }
     getData();
   }, []);
@@ -69,6 +70,8 @@ function App() {
     // TODO only send changed pick
     await axios.post(serverPath + '/picks', newPicks);
   };
+  const latestEpId = Math.max(...contestantStatus.filter((cs: any) => cs.is_on).map((cs: any) => cs.episode_id));
+  // TODO ep id may not be sequential. . . use airdate instead
   return (
     <div className="App">
       <table>
@@ -83,14 +86,20 @@ function App() {
           })}
         </tr>
         {sortedContestants.map((c: any) => {
+          const contestantLastEpId = Math.max(...contestantStatus.filter((cs: any) => cs.contestant_id === c.id && cs.is_on).map((cs: any) => cs.episode_id));
+          const isCurrentlyOn = contestantLastEpId === latestEpId;
           return <tr key={c.id}>
             <td>
               <img alt={c.name} style={{ width: 25 }} src={c.img} />{c.name}
             </td>
-            {episodes.map((ep: any) => {
+            {episodes.map((ep: any, epIndex: number) => {
               const res = contestantStatus.find((cs: any) => c.id === cs.contestant_id && cs.episode_id === ep.id) as any;
-              return <td style={{ backgroundColor: res?.is_on ? 'green' : 'red'}} key={ep.id}>
-                <input onChange={(e) => savePicks(e, ep.id, c.id)} type="checkbox" checked={picks.some((p: any) => p.episode_id === ep.id && p.contestant_id === c.id && p.is_on)}></input>
+              let backgroundColor = res?.is_on ? 'green' : (isCurrentlyOn ? 'gray' : 'red');
+              const isChecked = picks.some((p: any) => p.episode_id === ep.id && p.contestant_id === c.id && p.is_on);
+              const advanced = ep.id < contestantLastEpId;
+              return <td style={{ backgroundColor }} key={ep.id}>
+                {(ep.id <= contestantLastEpId || isCurrentlyOn || isChecked) && <input onChange={(e) => savePicks(e, ep.id, c.id)} type="checkbox" checked={isChecked}></input>}
+                {advanced && '→'}
               </td>
             })}
           </tr>
@@ -100,6 +109,10 @@ function App() {
       <div>{JSON.stringify(leaderboard)}</div>
     </div>
   );
+}
+
+function getCurrentDate () {
+  return new Date();
 }
 
 export default App;
