@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const serverPath = import.meta.env.VITE_SERVER_PATH;
+const serverPath = `${window.location.protocol}//${
+  import.meta.env.DEV
+    ? `${window.location.hostname}:3000`
+    : window.location.host
+}`;
 
 function App() {
   const [contestants, setContestants] = useState([]);
@@ -25,9 +29,7 @@ function App() {
     async function getData() {
       const response = await fetch(serverPath + "/episodes");
       const data = await response.json();
-      setEpisodes(
-        data.filter((ep: any) => ep.name.startsWith('"Week')),
-      );
+      setEpisodes(data.filter((ep: any) => ep.name.startsWith('"Week')));
     }
     getData();
   }, []);
@@ -85,7 +87,10 @@ function App() {
     setPicks(newPicks);
     // submit to server
     // TODO only send changed pick
-    await fetch(serverPath + "/picks", { method: 'POST', body: JSON.stringify(newPicks) });
+    await fetch(serverPath + "/picks", {
+      method: "POST",
+      body: JSON.stringify(newPicks),
+    });
   };
   const latestEpId = Math.max(
     ...contestantStatus

@@ -7,7 +7,7 @@
     "start": "vite --host",
     "build": "vite build",
     "prettier": "npx prettier --write .",
-    "dev": "node --env-file-if-exists=.env --watch server/server.ts"
+    "dev": "node --env-file-if-exists=.env --watch-path server server/server.ts"
   },
   "dependencies": {
     "body-parser": "^2.2.1",

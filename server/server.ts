@@ -3,8 +3,12 @@ import { Client, type QueryResult } from "pg";
 import cors from "cors";
 import bodyParser from "body-parser";
 import * as cheerio from "cheerio";
+import { writeFileSync } from "node:fs";
 
 // TODO implement firebase login
+
+const dbUrl =
+  (process.env.DATABASE_URL || "postgres://localhost:5432") + "/fantasytv";
 
 const app = express();
 app.use(express.static("./build"));
@@ -89,10 +93,8 @@ app.post("/league", async (req, res) => {
 });
 app.listen(process.env.PORT || 3000);
 
-if (process.env.NODE_ENV === "development") {
-  rescore();
-  // refetch();
-}
+await refetch();
+await rescore();
 
 async function getContestantStatus() {
   const client = await getDBClient();
@@ -109,7 +111,7 @@ async function getContestantStatus() {
 
 // TODO pass in show to refetch
 async function refetch() {
-  const client = new Client(process.env.POSTGRES_URL);
+  const client = new Client(dbUrl);
   await client.connect();
 
   // Create default user
@@ -127,34 +129,38 @@ async function refetch() {
     { name: true, season: true },
   );
   const showId = showResult.rows[0].id;
+
   // Create default league for show
-  await upsertObject(
+  const leagueResult = await upsertObject(
     client,
     "league",
     { id: 1, show_id: showId, admin_uids: [] },
     { id: true },
   );
+  // console.log('league', leagueResult);
 
+  const url = "https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)";
   let resp = await fetch(
-    "https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)",
+    url,
   );
   const data = await resp.text();
+  writeFileSync('./data/' + url.split('/').at(-1), data);
+  
   // Parse table data
   var $ = cheerio.load(data);
 
   // upsert episodes
-  let ep_table = $("span#Episodes").parent().nextAll("table").first();
+  let ep_table = $("h2#Episodes").parent().nextAll("table").first();
   const eps: any[] = [];
-  ep_table.find("tbody tr").map(function (tr_index: number) {
+  ep_table.find("tbody tr.module-episode-list-row").map((tr_index, el) => {
     // gets the cells value for the row; loops through each cell and returns an array of values
-    if (tr_index === 0) {
-      return;
-    }
+    // if (tr_index === 0) {
+    //   // Skip header
+    //   return;
+    // }
     const row: any = { show_id: showId };
-    //@ts-expect-error
-    $(this)
-      .find("td")
-      .each((i: number, el: any) => {
+    $(el).find("td")
+      .each((i, el) => {
         if (i === 0) {
           row["num"] = $(el).text().trim();
         } else if (i === 1) {
@@ -164,7 +170,8 @@ async function refetch() {
           row["airdate"] = new Date(airdate);
         }
       });
-    eps.push(row);
+      console.log(row);
+      eps.push(row);
   });
   for (let i = 0; i < eps.length; i++) {
     console.log(eps[i]);
@@ -172,7 +179,7 @@ async function refetch() {
   }
 
   // targets the specific table with a selector
-  var html_table = $("span#Call-out_order").parent().next("table");
+  var html_table = $("h2#Call-out_order").parent().next("table");
   // gets table header titles; loops through all th data, and pulls an array of the values
   // var table_header = html_table.find('th').map(function() {return $(this).text().trim();}).toArray();
   // removes columns after the number of columns specified
@@ -180,7 +187,7 @@ async function refetch() {
 
   const result: any[] = [];
   // gets table cell values; loops through all tr rows
-  html_table.find("tbody tr").map(function (tr_index: number) {
+  html_table.find("tbody tr").map((tr_index, el) => {
     // gets the cells value for the row; loops through each cell and returns an array of values
     const pass = [
       "turquoise",
@@ -191,48 +198,45 @@ async function refetch() {
       "thistle",
       undefined,
     ];
-    //@ts-expect-error
-    $(this)
+    $(el)
       .find("td")
-      .each((i: number, el: any) => {
+      .each((i, el) => {
         const isPass = pass.includes($(el).attr("bgcolor"));
-        const name = (
-          $(el)
-            .contents()
-            .filter(function () {
-              //@ts-expect-error
-              return this.nodeType == 3;
-            })[0] as any
-        ).nodeValue.trim();
-        if (name) {
-          result.push({ show_id: showId, name, episode: i + 1, is_on: isPass });
+        for (const e of $(el).contents()) {
+          const name = $(e).text().trim();
+          // TODO Probably should check the name belongs to a contestant on the current season
+          if (name) {
+            const row = { show_id: showId, name, episode: i + 1, is_on: isPass };
+            result.push(row);
+          }
         }
       });
   });
   // Insert ep 1 people into contestants table
-  resp = await fetch(
-    "https://prod.gatekeeper.us-abc.symphony.edgedatg.com/api/ws/pluto/v1/module/tilegroup/3719769?start=0&size=50&authlevel=0&brand=001&device=001&show=SH559030",
-  );
-  const contData = await resp.json();
-  const imgMap: { [key: string]: string } = {};
-  contData.data.tiles.forEach((tile: any) => {
-    if (tile.person?.type === "Bachelorette") {
-      imgMap[tile.person?.firstname.trim()] = tile.images?.[0].value;
-    }
-  });
-  // console.log(imgMap);
-  const week1 = result.filter((row) => row.episode === 1);
-  for (let i = 0; i < week1.length; i++) {
-    // console.log(week1[i]);
-    await upsertObject(
-      client,
-      "contestant",
-      { show_id: 1, name: week1[i].name, img: imgMap[week1[i].name] },
-      { show_id: true, name: true },
-    );
-  }
+  // This endpoint returns only the current cast (but has images for each)
+  // resp = await fetch(
+  //   "https://prod.gatekeeper.us-abc.symphony.edgedatg.com/api/ws/pluto/v1/module/tilegroup/3719769?start=0&size=50&authlevel=0&brand=001&device=001&show=SH559030",
+  // );
+  // const contData = await resp.json();
+  // const imgMap: { [key: string]: string } = {};
+  // contData.tiles.forEach((tile: any) => {
+  //   if (tile.person?.type === "Bachelorette") {
+  //     imgMap[tile.person?.firstname.trim()] = tile.images?.[0].value;
+  //   }
+  // });
+  // // console.log(imgMap);
+  // const week1 = result.filter((row) => row.episode === 1);
+  // for (let i = 0; i < week1.length; i++) {
+  //   console.log('contestant', week1[i]);
+  //   await upsertObject(
+  //     client,
+  //     "contestant",
+  //     { show_id: 1, name: week1[i].name, img: imgMap[week1[i].name] },
+  //     { show_id: true, name: true },
+  //   );
+  // }
   for (let i = 0; i < result.length; i++) {
-    // console.log(result[i]);
+    console.log('raw_contestant_status', result[i]);
     await upsertObject(client, "raw_contestant_status", result[i], {
       show_id: true,
       name: true,
@@ -245,7 +249,7 @@ const multiplier = [0, 0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20];
 const expected = [30, 20, 17, 14, 11, 9, 7, 4, 4, 3, 2, 1];
 async function rescore() {
   // TODO implement scoring
-  const client = new Client(process.env.POSTGRES_URL);
+  const client = new Client(dbUrl);
   await client.connect();
   const check = await client.query(`
   SELECT contestant.id as contestant_id, 
@@ -314,11 +318,12 @@ export async function upsertObject(
 }
 
 let singleClient: Client = null as any;
+
 export async function getDBClient() {
   if (singleClient) {
     return singleClient;
   }
-  singleClient = new Client(process.env.POSTGRES_URL);
+  singleClient = new Client(dbUrl);
   await singleClient.connect();
   return singleClient;
 }
