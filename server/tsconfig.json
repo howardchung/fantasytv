@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "lib": ["dom", "es2020"],
-    "allowJs": true,
+    "target": "esnext",
+    "module": "nodenext",
     "strict": true,
-    "esModuleInterop": true,
-    "module": "commonjs",
+    "noEmit": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["."]
 }

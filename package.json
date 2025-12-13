@@ -2,51 +2,34 @@
   "name": "fantasytv",
   "version": "0.2.0",
   "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite --host",
+    "build": "vite build",
+    "prettier": "npx prettier --write .",
+    "dev": "PORT=8082 node --env-file-if-exists=.env --watch server/server.ts"
+  },
   "dependencies": {
-    "axios": "^1.2.4",
-    "body-parser": "^1.20.2",
-    "cheerio": "^1.0.0-rc.12",
+    "body-parser": "^2.2.1",
+    "cheerio": "^1.1.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "pg": "^8.10.0"
+    "express": "^5.2.1",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^5.16.5",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/cors": "^2.8.13",
-    "@types/express": "^4.17.17",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.11",
-    "@types/pg": "^8.6.6",
-    "@types/react": "^18.0.27",
-    "@types/react-dom": "^18.0.10",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^4.9.4",
-    "web-vitals": "^2.1.4",
-    "firebase": "^9.17.2",
-    "prettier": "^2.8.4",
-    "react-router-dom": "^6.9.0"
-  },
-  "scripts": {
-    "start": "node server/server.js",
-    "react": "react-scripts start",
-    "build": "npm run buildReact && npm run buildServer",
-    "buildReact": "react-scripts build",
-    "buildServer": "tsc --project server/tsconfig.json",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "dev": "PORT=8082 ts-node-dev server/server.ts"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "@types/cheerio": "^0.22.35",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.1",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "firebase": "^12.6.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
   },
   "browserslist": {
     "production": [
