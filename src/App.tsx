@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-  type User,
-} from "firebase/auth";
-import { auth, googleProvider } from "./firebase";
+  googleClientId,
+  loadGis,
+  loadStoredUser,
+  parseCredential,
+  storeUser,
+  type GoogleUser,
+} from "./googleAuth";
 import "./App.css";
 
 const serverPath = `${window.location.protocol}//${
@@ -14,36 +15,69 @@ const serverPath = `${window.location.protocol}//${
     : window.location.host
 }`;
 
-// Sends the signed-in user's Firebase ID token so the server knows who is calling
-async function authFetch(user: User, path: string, init: RequestInit = {}) {
-  const token = await user.getIdToken();
+// Sends the signed-in user's Google ID token so the server knows who is calling
+function authFetch(user: GoogleUser, path: string, init: RequestInit = {}) {
   return fetch(serverPath + path, {
     ...init,
     headers: {
       ...init.headers,
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${user.credential}`,
     },
   });
 }
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, (u) => {
-        setUser(u);
-        setAuthLoading(false);
-      }),
-    [],
-  );
-  const signIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      console.error("Sign-in failed", e);
+  const [user, setUser] = useState<GoogleUser | null>(loadStoredUser);
+  const updateUser = (u: GoogleUser | null) => {
+    storeUser(u);
+    setUser(u);
+  };
+  const [gisReady, setGisReady] = useState(false);
+  const signInButton = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!googleClientId) {
+      console.error("VITE_GOOGLE_CLIENT_ID is not set");
+      return;
     }
+    loadGis()
+      .then(() => {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          auto_select: true,
+          callback: (resp) => updateUser(parseCredential(resp.credential)),
+        });
+        setGisReady(true);
+      })
+      .catch((e) => console.error(e));
+  }, []);
+  useEffect(() => {
+    if (!gisReady || user) {
+      return;
+    }
+    if (signInButton.current) {
+      google.accounts.id.renderButton(signInButton.current, {
+        type: "standard",
+        theme: "outline",
+        size: "medium",
+      });
+    }
+    // One Tap, which signs returning users back in automatically
+    google.accounts.id.prompt();
+  }, [gisReady, user]);
+  // Google ID tokens can't be refreshed, so sign out when it expires
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const timer = setTimeout(() => updateUser(null), user.exp - Date.now());
+    return () => clearTimeout(timer);
+  }, [user]);
+  const signOut = () => {
+    if (gisReady) {
+      google.accounts.id.disableAutoSelect();
+    }
+    updateUser(null);
   };
 
   const [contestants, setContestants] = useState([]);
@@ -81,6 +115,10 @@ function App() {
     }
     async function getData() {
       const response = await authFetch(user!, "/picks");
+      if (response.status === 401) {
+        updateUser(null);
+        return;
+      }
       setPicks(await response.json());
     }
     getData();
@@ -146,23 +184,23 @@ function App() {
   return (
     <div className="App">
       <header className="auth-bar">
-        {authLoading ? null : user ? (
+        {user ? (
           <>
-            {user.photoURL && (
+            {user.picture && (
               <img
                 className="avatar"
                 alt=""
-                src={user.photoURL}
+                src={user.picture}
                 referrerPolicy="no-referrer"
               />
             )}
-            <span>{user.displayName || user.email}</span>
-            <button onClick={() => signOut(auth)}>Sign out</button>
+            <span>{user.name || user.email}</span>
+            <button onClick={signOut}>Sign out</button>
           </>
         ) : (
           <>
             <span>Sign in to make picks</span>
-            <button onClick={signIn}>Sign in with Google</button>
+            <div ref={signInButton} />
           </>
         )}
       </header>

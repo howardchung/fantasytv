@@ -4,20 +4,16 @@ Custom webapp for managing reality TV fantasy leagues, with auto-scoring from sc
 
 ### Google login
 
-Login uses Firebase Authentication. In the [Firebase console](https://console.firebase.google.com/):
+Login uses [Sign in with Google](https://developers.google.com/identity/gsi/web). In the [Google Cloud console](https://console.cloud.google.com/apis/credentials):
 
-1. Create a project and add a web app
-2. Under Authentication > Sign-in method, enable Google
-3. Under Authentication > Settings > Authorized domains, add the domain you serve the app from (`localhost` is included by default)
+1. Create an OAuth client ID of type "Web application"
+2. Under Authorized JavaScript origins, add every origin you serve the app from. For local development add both `http://localhost` and `http://localhost:5173`
 
-Then add the web app's config to `.env`:
+Then add the client ID to `.env`:
 
 ```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=<project-id>.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=<project-id>
-VITE_FIREBASE_APP_ID=...
-FIREBASE_PROJECT_ID=<project-id>
+VITE_GOOGLE_CLIENT_ID=<client-id>.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=<client-id>.apps.googleusercontent.com
 ```
 
-The `VITE_` values are used by the client; `FIREBASE_PROJECT_ID` is used by the server to verify sign-in tokens.
+`VITE_GOOGLE_CLIENT_ID` is used by the client; `GOOGLE_CLIENT_ID` is used by the server to verify sign-in tokens.

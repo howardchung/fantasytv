@@ -4,13 +4,12 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import * as cheerio from "cheerio";
 import { writeFileSync } from "node:fs";
-import { initializeApp } from "firebase-admin/app";
-import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
+import { OAuth2Client, type TokenPayload } from "google-auth-library";
 
-// Only the project ID is needed to verify ID tokens, no service account
-initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID });
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client();
 
-// Verifies the Firebase ID token from the client and records the account
+// Verifies the Google ID token from the client and records the account
 async function requireAuth(
   req: express.Request,
   res: express.Response,
@@ -21,10 +20,20 @@ async function requireAuth(
     res.status(401).json({ error: "Not signed in" });
     return;
   }
-  let decoded: DecodedIdToken;
+  // Without an audience, tokens issued to any Google app would be accepted
+  if (!googleClientId) {
+    res.status(500).json({ error: "GOOGLE_CLIENT_ID is not set" });
+    return;
+  }
+  let decoded: TokenPayload | undefined;
   try {
-    decoded = await getAuth().verifyIdToken(token);
-  } catch (e) {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: googleClientId,
+    });
+    decoded = ticket.getPayload();
+  } catch (e) {}
+  if (!decoded) {
     res.status(401).json({ error: "Invalid token" });
     return;
   }
@@ -33,14 +42,14 @@ async function requireAuth(
     client,
     "account",
     {
-      uid: decoded.uid,
+      uid: decoded.sub,
       name: decoded.name || "",
       email: decoded.email || "",
       img: decoded.picture || "",
     },
     { uid: true },
   );
-  res.locals.uid = decoded.uid;
+  res.locals.uid = decoded.sub;
   next();
 }
 
