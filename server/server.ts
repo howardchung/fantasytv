@@ -247,6 +247,93 @@ async function refetch() {
       episode: true,
     });
   }
+
+  // Elimination week for each contestant, from the Contestants table
+  // The call-out order uses short names (e.g. "Kaity", "Viktoria E."), so match full names to those
+  const shortNames = result
+    .filter((row) => row.episode === 1)
+    .map((row) => row.name);
+  const eliminations = parseEliminations($);
+  for (let i = 0; i < eliminations.length; i++) {
+    const { fullName, week } = eliminations[i];
+    const name = matchShortName(fullName, shortNames);
+    console.log('contestant', fullName, name, week);
+    await upsertObject(
+      client,
+      "contestant",
+      { show_id: showId, name, eliminated_week: week },
+      { show_id: true, name: true },
+    );
+  }
+}
+
+function parseEliminations($: ReturnType<typeof cheerio.load>) {
+  const table = $("h2#Contestants").parent().nextAll("table").first();
+  const headers = table
+    .find("tr")
+    .first()
+    .find("th")
+    .map((_, el) => $(el).text().trim())
+    .toArray() as unknown as string[];
+  const nameCol = headers.indexOf("Name");
+  const outcomeCol = headers.indexOf("Outcome");
+
+  // Expand rowspans, since contestants eliminated the same week share one Outcome cell
+  const grid: string[][] = [];
+  const pending: { [col: number]: { text: string; rows: number } } = {};
+  table.find("tr").slice(1).each((_, tr) => {
+    const row: string[] = [];
+    const cells = $(tr).find("td").toArray();
+    for (let col = 0; col < headers.length; col++) {
+      if (pending[col]?.rows > 0) {
+        row.push(pending[col].text);
+        pending[col].rows--;
+        continue;
+      }
+      const cell = cells.shift();
+      if (!cell) {
+        break;
+      }
+      $(cell).find("sup").remove();
+      const text = $(cell).text().trim();
+      const span = Number($(cell).attr("rowspan") || 1);
+      if (span > 1) {
+        pending[col] = { text, rows: span - 1 };
+      }
+      row.push(text);
+    }
+    grid.push(row);
+  });
+
+  const outcomes = grid.map((row) => row[outcomeCol]);
+  const weeks = outcomes
+    .map((o) => Number(o.match(/Week (\d+)/)?.[1]))
+    .filter((w) => w);
+  // The runner-up goes out in the finale, the week after the last regular elimination
+  const finaleWeek = Math.max(...weeks) + 1;
+  return grid.map((row, i) => {
+    const outcome = outcomes[i];
+    let week: number | null = Number(outcome.match(/Week (\d+)/)?.[1]) || null;
+    if (/runner/i.test(outcome)) {
+      week = finaleWeek;
+    }
+    return { fullName: row[nameCol], week };
+  });
+}
+
+// e.g. 'Kaitlyn "Kaity" Biggar' -> "Kaity", "Viktoria Eichner" -> "Viktoria E."
+function matchShortName(fullName: string, shortNames: string[]) {
+  const nickname = fullName.match(/"(.+)"/)?.[1];
+  const parts = fullName.replace(/".+"/, "").split(/\s+/).filter(Boolean);
+  const first = nickname || parts[0];
+  const last = parts.at(-1) || "";
+  const match = shortNames.find((short) => {
+    const [shortFirst, initial] = short.split(" ");
+    return (
+      shortFirst === first && (!initial || last.startsWith(initial[0]))
+    );
+  });
+  return match || first;
 }
 
 const multiplier = [0, 0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20];

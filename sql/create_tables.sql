@@ -20,7 +20,8 @@ CREATE TABLE contestant(
     id serial PRIMARY KEY,
     show_id int REFERENCES show(id)  ON DELETE CASCADE,
     name text,
-    img text
+    img text,
+    eliminated_week int -- NULL for the winner
 );
 CREATE UNIQUE INDEX on contestant(show_id, name);
 
