@@ -36,3 +36,17 @@
     transform: rotate(360deg);
   }
 }
+
+.auth-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px;
+}
+
+.auth-bar .avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}

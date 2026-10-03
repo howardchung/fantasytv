@@ -1,4 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  type User,
+} from "firebase/auth";
+import { auth, googleProvider } from "./firebase";
 import "./App.css";
 
 const serverPath = `${window.location.protocol}//${
@@ -7,7 +14,38 @@ const serverPath = `${window.location.protocol}//${
     : window.location.host
 }`;
 
+// Sends the signed-in user's Firebase ID token so the server knows who is calling
+async function authFetch(user: User, path: string, init: RequestInit = {}) {
+  const token = await user.getIdToken();
+  return fetch(serverPath + path, {
+    ...init,
+    headers: {
+      ...init.headers,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (u) => {
+        setUser(u);
+        setAuthLoading(false);
+      }),
+    [],
+  );
+  const signIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error("Sign-in failed", e);
+    }
+  };
+
   const [contestants, setContestants] = useState([]);
   useEffect(() => {
     async function getData() {
@@ -37,12 +75,16 @@ function App() {
     { contestant_id: number; episode_id: Number; is_on: boolean }[]
   >([]);
   useEffect(() => {
+    if (!user) {
+      setPicks([]);
+      return;
+    }
     async function getData() {
-      const response = await fetch(serverPath + "/picks");
+      const response = await authFetch(user!, "/picks");
       setPicks(await response.json());
     }
     getData();
-  }, []);
+  }, [user]);
   const [leaderboard, setLeaderboard] = useState<[]>([]);
   useEffect(() => {
     async function getData() {
@@ -70,6 +112,9 @@ function App() {
   );
 
   const savePicks = async (e: any, epId: number, contId: number) => {
+    if (!user) {
+      return;
+    }
     const checked = e.target.checked;
     const newPicks = [...picks];
     const exists = newPicks.find(
@@ -87,7 +132,7 @@ function App() {
     setPicks(newPicks);
     // submit to server
     // TODO only send changed pick
-    await fetch(serverPath + "/picks", {
+    await authFetch(user, "/picks", {
       method: "POST",
       body: JSON.stringify(newPicks),
     });
@@ -100,6 +145,27 @@ function App() {
   // TODO ep id may not be sequential. . . use airdate instead
   return (
     <div className="App">
+      <header className="auth-bar">
+        {authLoading ? null : user ? (
+          <>
+            {user.photoURL && (
+              <img
+                className="avatar"
+                alt=""
+                src={user.photoURL}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <span>{user.displayName || user.email}</span>
+            <button onClick={() => signOut(auth)}>Sign out</button>
+          </>
+        ) : (
+          <>
+            <span>Sign in to make picks</span>
+            <button onClick={signIn}>Sign in with Google</button>
+          </>
+        )}
+      </header>
       <table>
         <tbody>
           <tr>
@@ -145,9 +211,10 @@ function App() {
                   const advanced = ep.id < contestantLastEpId;
                   return (
                     <td style={{ backgroundColor }} key={ep.id}>
-                      {(ep.id <= contestantLastEpId ||
-                        isCurrentlyOn ||
-                        isChecked) && (
+                      {user &&
+                        (ep.id <= contestantLastEpId ||
+                          isCurrentlyOn ||
+                          isChecked) && (
                         <input
                           onChange={(e) => savePicks(e, ep.id, c.id)}
                           type="checkbox"
