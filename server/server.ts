@@ -46,6 +46,8 @@ async function requireAuth(
 
 const dbUrl =
   (process.env.DATABASE_URL || "postgres://localhost:5432") + "/fantasytv";
+// Declared before the top-level awaits below, so requests served during startup can use it
+let singleClient: Promise<Client> | null = null;
 
 const app = express();
 app.use(express.static("./build"));
@@ -450,13 +452,12 @@ export async function upsertObject(
   return result;
 }
 
-let singleClient: Client = null as any;
-
-export async function getDBClient() {
-  if (singleClient) {
-    return singleClient;
-  }
-  singleClient = new Client(dbUrl);
-  await singleClient.connect();
+export function getDBClient() {
+  // Cache the promise so concurrent first calls share one connection
+  singleClient ??= (async () => {
+    const client = new Client(dbUrl);
+    await client.connect();
+    return client;
+  })();
   return singleClient;
 }
