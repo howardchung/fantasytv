@@ -235,6 +235,10 @@ async function refetch() {
   //     { show_id: true, name: true },
   //   );
   // }
+  // Clear old rows so names from earlier parses don't linger
+  await client.query("DELETE FROM raw_contestant_status WHERE show_id = $1", [
+    showId,
+  ]);
   for (let i = 0; i < result.length; i++) {
     console.log('raw_contestant_status', result[i]);
     await upsertObject(client, "raw_contestant_status", result[i], {
