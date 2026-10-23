@@ -4,11 +4,59 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import * as cheerio from "cheerio";
 import { writeFileSync } from "node:fs";
+import { OAuth2Client, type TokenPayload } from "google-auth-library";
 
-// TODO implement firebase login
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client();
+
+// Verifies the Google ID token from the client and records the account
+async function requireAuth(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
+  if (!token) {
+    res.status(401).json({ error: "Not signed in" });
+    return;
+  }
+  // Without an audience, tokens issued to any Google app would be accepted
+  if (!googleClientId) {
+    res.status(500).json({ error: "GOOGLE_CLIENT_ID is not set" });
+    return;
+  }
+  let decoded: TokenPayload | undefined;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: googleClientId,
+    });
+    decoded = ticket.getPayload();
+  } catch (e) {}
+  if (!decoded) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  const client = await getDBClient();
+  await upsertObject(
+    client,
+    "account",
+    {
+      uid: decoded.sub,
+      name: decoded.name || "",
+      email: decoded.email || "",
+      img: decoded.picture || "",
+    },
+    { uid: true },
+  );
+  res.locals.uid = decoded.sub;
+  next();
+}
 
 const dbUrl =
   (process.env.DATABASE_URL || "postgres://localhost:5432") + "/fantasytv";
+// Declared before the top-level awaits below, so requests served during startup can use it
+let singleClient: Promise<Client> | null = null;
 
 const app = express();
 app.use(express.static("./build"));
@@ -46,25 +94,32 @@ app.get("/contestantStatus", async (req, res) => {
   // Join the data to get the clean contestant status, currently not stored in table but we have one
   res.json(await getContestantStatus());
 });
-app.get("/picks", async (req, res) => {
-  // TODO filter by real user id and league
+app.get("/picks", requireAuth, async (req, res) => {
+  // TODO filter by league
   // TODO return whether pick is editable
   const client = await getDBClient();
   const result = await client.query(
-    `SELECT * from pick WHERE uid = 'asdf' AND league_id = 1`,
+    `SELECT * from pick WHERE uid = $1 AND league_id = 1`,
+    [res.locals.uid],
   );
   res.json(result.rows);
 });
-app.post("/picks", async (req, res) => {
-  // TODO allow setting user ID + validate
+app.post("/picks", requireAuth, async (req, res) => {
+  // TODO validate
   // TODO only allow setting picks that aren't locked
   const client = await getDBClient();
   // console.log(req.body);
   for (let i = 0; i < req.body.length; i++) {
-    const pick = req.body[i];
+    // Only take known fields, since upsertObject uses keys as column names
+    const { episode_id, contestant_id, is_on } = req.body[i];
     const isPickEditable = true;
-    pick.uid = "asdf";
-    pick.league_id = 1;
+    const pick = {
+      league_id: 1,
+      uid: res.locals.uid,
+      episode_id,
+      contestant_id,
+      is_on,
+    };
     await upsertObject(client, "pick", pick, {
       league_id: true,
       episode_id: true,
@@ -72,6 +127,7 @@ app.post("/picks", async (req, res) => {
       contestant_id: true,
     });
   }
+  res.json({});
 });
 app.get("/leaderboard", async (req, res) => {
   // TODO pass in league id
@@ -113,14 +169,6 @@ async function getContestantStatus() {
 async function refetch() {
   const client = new Client(dbUrl);
   await client.connect();
-
-  // Create default user
-  await upsertObject(
-    client,
-    "account",
-    { uid: "asdf", img: "", email: "" },
-    { uid: true },
-  );
 
   const showResult = await upsertObject(
     client,
@@ -347,11 +395,12 @@ async function rescore() {
   episode.id as episode_id,
   raw_contestant_status.is_on as answer,
   episode.num,
-  pick.is_on as guess
+  pick.is_on as guess,
+  pick.uid
   FROM raw_contestant_status
   LEFT JOIN contestant on contestant.name = raw_contestant_status.name
   LEFT JOIN episode on raw_contestant_status.episode = episode.num AND raw_contestant_status.show_id = episode.show_id
-  JOIN pick on episode.id = pick.episode_id AND contestant.id = pick.contestant_id AND pick.league_id = 1 AND pick.uid = 'asdf';
+  JOIN pick on episode.id = pick.episode_id AND contestant.id = pick.contestant_id AND pick.league_id = 1;
 `);
   console.log(check.rows);
   // TODO picking semantics
@@ -360,8 +409,10 @@ async function rescore() {
   // Matches up with is_on db state and green state we display on table
   // Or we pick "who survives this episode"
   // This doesn't match up with the is_on state so scoring is a bit more complicated since we need to compute whether the contestant advanced
-  let score = 0;
+  const scores: { [uid: string]: number } = {};
   for (let i = 0; i < check.rows.length; i++) {
+    const uid = check.rows[i].uid;
+    scores[uid] ??= 0;
     // Options:
     // Limit the number of picks made per week (prevent people from just picking everyone)
     // Apply a penalty for picking incorrectly (doubly affects people who pick an incorrect, e.g. picking 3 right is better as picking 4 and getting 1 wrong)
@@ -369,16 +420,18 @@ async function rescore() {
     // Multiply episode value by % correct
     // TODO need to match up with next episode is_on
     if (check.rows[i].guess === check.rows[i].answer) {
-      score += multiplier[check.rows[i].num - 1];
+      scores[uid] += multiplier[check.rows[i].num - 1];
     }
   }
-  console.log(score);
-  await upsertObject(
-    client,
-    "league_account",
-    { league_id: 1, uid: "asdf", score },
-    { league_id: true, uid: true },
-  );
+  console.log(scores);
+  for (const [uid, score] of Object.entries(scores)) {
+    await upsertObject(
+      client,
+      "league_account",
+      { league_id: 1, uid, score },
+      { league_id: true, uid: true },
+    );
+  }
 }
 
 export async function upsertObject(
@@ -408,13 +461,12 @@ export async function upsertObject(
   return result;
 }
 
-let singleClient: Client = null as any;
-
-export async function getDBClient() {
-  if (singleClient) {
-    return singleClient;
-  }
-  singleClient = new Client(dbUrl);
-  await singleClient.connect();
+export function getDBClient() {
+  // Cache the promise so concurrent first calls share one connection
+  singleClient ??= (async () => {
+    const client = new Client(dbUrl);
+    await client.connect();
+    return client;
+  })();
   return singleClient;
 }

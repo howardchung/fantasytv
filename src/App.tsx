@@ -1,4 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  googleClientId,
+  loadGis,
+  loadStoredUser,
+  parseCredential,
+  storeUser,
+  type GoogleUser,
+} from "./googleAuth";
 import "./App.css";
 
 const serverPath = `${window.location.protocol}//${
@@ -7,7 +15,71 @@ const serverPath = `${window.location.protocol}//${
     : window.location.host
 }`;
 
+// Sends the signed-in user's Google ID token so the server knows who is calling
+function authFetch(user: GoogleUser, path: string, init: RequestInit = {}) {
+  return fetch(serverPath + path, {
+    ...init,
+    headers: {
+      ...init.headers,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${user.credential}`,
+    },
+  });
+}
+
 function App() {
+  const [user, setUser] = useState<GoogleUser | null>(loadStoredUser);
+  const updateUser = (u: GoogleUser | null) => {
+    storeUser(u);
+    setUser(u);
+  };
+  const [gisReady, setGisReady] = useState(false);
+  const signInButton = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!googleClientId) {
+      console.error("VITE_GOOGLE_CLIENT_ID is not set");
+      return;
+    }
+    loadGis()
+      .then(() => {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          auto_select: true,
+          callback: (resp) => updateUser(parseCredential(resp.credential)),
+        });
+        setGisReady(true);
+      })
+      .catch((e) => console.error(e));
+  }, []);
+  useEffect(() => {
+    if (!gisReady || user) {
+      return;
+    }
+    if (signInButton.current) {
+      google.accounts.id.renderButton(signInButton.current, {
+        type: "standard",
+        theme: "outline",
+        size: "medium",
+      });
+    }
+    // One Tap, which signs returning users back in automatically
+    google.accounts.id.prompt();
+  }, [gisReady, user]);
+  // Google ID tokens can't be refreshed, so sign out when it expires
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const timer = setTimeout(() => updateUser(null), user.exp - Date.now());
+    return () => clearTimeout(timer);
+  }, [user]);
+  const signOut = () => {
+    if (gisReady) {
+      google.accounts.id.disableAutoSelect();
+    }
+    updateUser(null);
+  };
+
   const [contestants, setContestants] = useState([]);
   useEffect(() => {
     async function getData() {
@@ -37,12 +109,20 @@ function App() {
     { contestant_id: number; episode_id: Number; is_on: boolean }[]
   >([]);
   useEffect(() => {
+    if (!user) {
+      setPicks([]);
+      return;
+    }
     async function getData() {
-      const response = await fetch(serverPath + "/picks");
+      const response = await authFetch(user!, "/picks");
+      if (response.status === 401) {
+        updateUser(null);
+        return;
+      }
       setPicks(await response.json());
     }
     getData();
-  }, []);
+  }, [user]);
   const [leaderboard, setLeaderboard] = useState<[]>([]);
   useEffect(() => {
     async function getData() {
@@ -70,6 +150,9 @@ function App() {
   );
 
   const savePicks = async (e: any, epId: number, contId: number) => {
+    if (!user) {
+      return;
+    }
     const checked = e.target.checked;
     const newPicks = [...picks];
     const exists = newPicks.find(
@@ -87,7 +170,7 @@ function App() {
     setPicks(newPicks);
     // submit to server
     // TODO only send changed pick
-    await fetch(serverPath + "/picks", {
+    await authFetch(user, "/picks", {
       method: "POST",
       body: JSON.stringify(newPicks),
     });
@@ -100,6 +183,27 @@ function App() {
   // TODO ep id may not be sequential. . . use airdate instead
   return (
     <div className="App">
+      <header className="auth-bar">
+        {user ? (
+          <>
+            {user.picture && (
+              <img
+                className="avatar"
+                alt=""
+                src={user.picture}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <span>{user.name || user.email}</span>
+            <button onClick={signOut}>Sign out</button>
+          </>
+        ) : (
+          <>
+            <span>Sign in to make picks</span>
+            <div ref={signInButton} />
+          </>
+        )}
+      </header>
       <table>
         <tbody>
           <tr>
@@ -145,9 +249,10 @@ function App() {
                   const advanced = ep.id < contestantLastEpId;
                   return (
                     <td style={{ backgroundColor }} key={ep.id}>
-                      {(ep.id <= contestantLastEpId ||
-                        isCurrentlyOn ||
-                        isChecked) && (
+                      {user &&
+                        (ep.id <= contestantLastEpId ||
+                          isCurrentlyOn ||
+                          isChecked) && (
                         <input
                           onChange={(e) => savePicks(e, ep.id, c.id)}
                           type="checkbox"
