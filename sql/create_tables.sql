@@ -50,9 +50,11 @@ CREATE TABLE account(
 CREATE TABLE league(
     id serial PRIMARY KEY,
     show_id int REFERENCES show(id),
+    name text,
     admin_uids text[]
 );
 
+--Represents an unlock override set by an admin
 CREATE TABLE league_unlocks(
     league_id int REFERENCES league(id),
     episode_id int REFERENCES episode(id),
