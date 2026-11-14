@@ -2,7 +2,8 @@ import express from "express";
 import { Client, type QueryResult } from "pg";
 import cors from "cors";
 import * as cheerio from "cheerio";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import https from "node:https";
 import { OAuth2Client, type TokenPayload } from "google-auth-library";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -418,7 +419,19 @@ app.post("/league", async (req, res) => {
   });
   res.json(result.rows[0]);
 });
-app.listen(process.env.PORT || 3000);
+const port = process.env.PORT || 3000;
+const keyFile = process.env.SSL_KEY_FILE || "./certs/key.pem";
+const certFile = process.env.SSL_CERT_FILE || "./certs/cert.pem";
+if (existsSync(keyFile) && existsSync(certFile)) {
+  https
+    .createServer(
+      { key: readFileSync(keyFile), cert: readFileSync(certFile) },
+      app,
+    )
+    .listen(port);
+} else {
+  app.listen(port);
+}
 
 
 const pacificFormatter = new Intl.DateTimeFormat("en-US", {

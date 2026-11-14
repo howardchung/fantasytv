@@ -507,10 +507,7 @@ function App() {
               <button onClick={signOut}>Sign out</button>
             </>
           ) : (
-            <>
-              <span>Sign in to make picks</span>
-              <div ref={signInButton} />
-            </>
+            <div ref={signInButton} />
           )}
         </div>
       </header>
