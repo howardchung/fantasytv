@@ -35,6 +35,11 @@ function getWeekNumber(epName: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function formatLeadSeason(lead: string): string {
+  const firstName = lead.trim().split(/\s+/)[0] || lead;
+  return `${firstName}'s season`;
+}
+
 type Episode = {
   id: number;
   show_id: number;
@@ -74,13 +79,15 @@ function getLeagueIdFromUrl(): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-type LeagueOption = {
+type ShowOption = {
   id: number;
-  name: string | null;
-  show_id: number;
-  show_name: string | null;
+  name: string;
   season: number | null;
+  lead?: string | null;
+  poster?: string | null;
+  default_league_id: number | null;
   has_episodes?: boolean;
+  latest_airdate?: string | null;
 };
 
 function App() {
@@ -91,18 +98,16 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   const leagueQuery = leagueId !== null ? `?league=${leagueId}` : "";
-  const [leagues, setLeagues] = useState<LeagueOption[]>([]);
+  const [shows, setShows] = useState<ShowOption[]>([]);
   useEffect(() => {
     async function getData() {
-      const response = await fetch(serverPath + "/leagues");
+      const response = await fetch(serverPath + "/shows");
       if (response.ok) {
-        const list: LeagueOption[] = await response.json();
-        setLeagues(list);
-        if (list.length > 0) {
-          const latestPopulated = [...list].reverse().find((l) => l.has_episodes);
-          setLeagueId(
-            (prev) => prev ?? (latestPopulated ?? list[list.length - 1]).id,
-          );
+        const list: ShowOption[] = await response.json();
+        setShows(list);
+        const defaultShow = list.find((s) => s.default_league_id !== null);
+        if (defaultShow?.default_league_id != null) {
+          setLeagueId((prev) => prev ?? defaultShow.default_league_id);
         }
       }
     }
@@ -459,21 +464,30 @@ function App() {
     <div className="App">
       <header className="auth-bar">
         <div className="header-left">
-          {leagues.length > 0 && (
+          {shows.length > 0 && (
             <label className="league-selector">
-              <span>League:</span>
+              <span>Show:</span>
               <select
                 value={leagueId ?? ""}
                 onChange={(e) => selectLeague(Number(e.target.value))}
               >
-                {leagues.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name || `#${l.id}`}
-                    {!l.name && l.show_name
-                      ? ` — ${l.show_name}${l.season ? ` (S${l.season})` : ""}`
-                      : ""}
-                  </option>
-                ))}
+                {shows.map((s) => {
+                  const year = s.latest_airdate
+                    ? new Date(s.latest_airdate).getUTCFullYear()
+                    : null;
+                  return (
+                    <option
+                      key={s.id}
+                      value={s.default_league_id ?? ""}
+                      disabled={s.default_league_id === null}
+                    >
+                      {s.name}
+                      {s.season ? ` Season ${s.season}` : ""}
+                      {year ? ` (${year})` : ""}
+                      {s.lead ? ` · ${formatLeadSeason(s.lead)}` : ""}
+                    </option>
+                  );
+                })}
               </select>
             </label>
           )}
@@ -501,6 +515,34 @@ function App() {
         </div>
       </header>
       <section className="picking-panel">
+        {(() => {
+          const selectedShow = shows.find(
+            (s) => s.default_league_id === leagueId,
+          );
+          if (!selectedShow?.poster) {
+            return null;
+          }
+          return (
+            <div className="season-banner">
+              <img
+                className="season-poster"
+                src={selectedShow.poster}
+                alt={`${selectedShow.name || "Season"} ${selectedShow.season ?? ""} poster`}
+              />
+              <div className="season-banner-info">
+                <div className="season-banner-title">
+                  {selectedShow.name}
+                  {selectedShow.season ? ` · Season ${selectedShow.season}` : ""}
+                </div>
+                {selectedShow.lead && (
+                  <div className="season-banner-lead">
+                    {formatLeadSeason(selectedShow.lead)}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
         <div className="week-tabs">
           {availableEpisodes.map((ep) => {
             const wNum = getWeekNumber(ep.name);

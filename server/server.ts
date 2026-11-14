@@ -8,8 +8,40 @@ import { OAuth2Client, type TokenPayload } from "google-auth-library";
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client();
 // Fallback Season 27 defaults when a show has no episodes/contestants yet
-const DEFAULT_EXPECTED = [20, 17, 14, 11, 9, 7, 4, 3, 2, 1];
-const DEFAULT_MULTIPLIER = [1, 2, 3, 4, 5, 7, 13, 18, 28, 60];
+const DEFAULT_WEEKS = 10;
+const SCORING_PRESETS: Record<
+  number,
+  { expected: number[]; multiplier: number[] }
+> = {
+  6: {
+    expected: [14, 10, 7, 4, 2, 1],
+    multiplier: [1, 2, 3, 6, 13, 28],
+  },
+  7: {
+    expected: [16, 12, 9, 6, 4, 2, 1],
+    multiplier: [1, 2, 3, 5, 8, 17, 36],
+  },
+  8: {
+    expected: [18, 14, 10, 7, 4, 3, 2, 1],
+    multiplier: [1, 2, 3, 5, 9, 13, 21, 45],
+  },
+  9: {
+    expected: [18, 15, 12, 9, 7, 4, 3, 2, 1],
+    multiplier: [1, 2, 3, 5, 7, 13, 18, 28, 60],
+  },
+  10: {
+    expected: [20, 17, 14, 11, 9, 7, 4, 3, 2, 1],
+    multiplier: [1, 2, 3, 4, 5, 7, 13, 18, 28, 60],
+  },
+  11: {
+    expected: [22, 19, 16, 13, 11, 9, 7, 4, 3, 2, 1],
+    multiplier: [1, 2, 3, 4, 5, 7, 10, 18, 25, 39, 80],
+  },
+  12: {
+    expected: [24, 21, 18, 15, 13, 11, 9, 7, 4, 3, 2, 1],
+    multiplier: [1, 2, 3, 4, 5, 6, 8, 11, 20, 28, 44, 92],
+  },
+};
 
 // Verifies the Google ID token from the client and records the account
 async function requireAuth(
@@ -100,8 +132,9 @@ async function getShowIdForLeague(
 app.get("/leagues", async (req, res) => {
   const client = await getDBClient();
   const result = await client.query(
-    `SELECT league.id, league.name, league.show_id, show.name AS show_name, show.season,
-            EXISTS (SELECT 1 FROM episode WHERE episode.show_id = league.show_id) AS has_episodes
+    `SELECT league.id, league.name, league.show_id, show.name AS show_name, show.season, show.lead, show.poster,
+            EXISTS (SELECT 1 FROM episode WHERE episode.show_id = league.show_id) AS has_episodes,
+            (SELECT MAX(airdate) FROM episode WHERE episode.show_id = league.show_id) AS latest_airdate
      FROM league
      LEFT JOIN show ON show.id = league.show_id
      ORDER BY league.id`,
@@ -120,7 +153,14 @@ app.get("/shows", async (req, res) => {
       : { rows: [] };
     return res.json(result.rows);
   }
-  const result = await client.query("SELECT * from show");
+  const result = await client.query(
+    `SELECT show.*,
+            (SELECT id FROM league WHERE league.show_id = show.id ORDER BY id ASC LIMIT 1) AS default_league_id,
+            EXISTS (SELECT 1 FROM episode WHERE episode.show_id = show.id) AS has_episodes,
+            (SELECT MAX(airdate) FROM episode WHERE episode.show_id = show.id) AS latest_airdate
+     FROM show
+     ORDER BY has_episodes ASC, latest_airdate DESC NULLS LAST, show.id DESC`,
+  );
   return res.json(result.rows);
 });
 app.get("/contestants", async (req, res) => {
@@ -505,8 +545,7 @@ type ShowConfig = {
   season: number;
   url: string;
   imagesUrl?: string;
-  expected?: number[];
-  multiplier?: number[];
+  weeks?: number;
 };
 
 function loadShowsConfig(): ShowConfig[] {
@@ -667,8 +706,16 @@ async function parseAndUpsertShowData(
     .filter((row) => row.episode === 1)
     .map((row) => row.name);
   const eliminations = parseEliminations($);
+  const lead = parseLead($);
+  const poster = parsePoster($);
 
   await withTransaction(client, async () => {
+    if (lead || poster) {
+      await client.query(
+        "UPDATE show SET lead = COALESCE($1, lead), poster = COALESCE($2, poster) WHERE id = $3",
+        [lead, poster, showId],
+      );
+    }
     for (let i = 0; i < eps.length; i++) {
       console.log(eps[i]);
       await upsertObject(client, "episode", eps[i], { show_id: true, num: true });
@@ -708,6 +755,33 @@ async function parseAndUpsertShowData(
   });
 }
 
+function parseLead($: ReturnType<typeof cheerio.load>): string | null {
+  let lead: string | null = null;
+  $("table.infobox tr").each((_, tr) => {
+    const th = $(tr).find("th").first().text().trim();
+    if (/^starring$/i.test(th)) {
+      const td = $(tr).find("td").first().clone();
+      td.find("sup").remove();
+      const text = td.text().trim();
+      if (text) {
+        lead = text;
+      }
+    }
+  });
+  return lead;
+}
+
+function parsePoster($: ReturnType<typeof cheerio.load>): string | null {
+  const src = $("table.infobox td.infobox-image img")
+    .first()
+    .attr("src")
+    ?.trim();
+  if (!src) {
+    return null;
+  }
+  return src.startsWith("//") ? `https:${src}` : src;
+}
+
 function parseEliminations($: ReturnType<typeof cheerio.load>) {
   const table = $("h2#Contestants").parent().nextAll("table").first();
   const headers = table
@@ -728,10 +802,12 @@ function parseEliminations($: ReturnType<typeof cheerio.load>) {
       return;
     }
     const row: string[] = [];
-    for (let col = 0; col < headers.length; col++) {
+    let col = 0;
+    while (col < headers.length) {
       if (pending[col]?.rows > 0) {
-        row.push(pending[col].text);
+        row[col] = pending[col].text;
         pending[col].rows--;
+        col++;
         continue;
       }
       const cell = cells.shift();
@@ -740,11 +816,15 @@ function parseEliminations($: ReturnType<typeof cheerio.load>) {
       }
       $(cell).find("sup").remove();
       const text = $(cell).text().trim();
-      const span = parseInt($(cell).attr("rowspan") || "1", 10) || 1;
-      if (span > 1) {
-        pending[col] = { text, rows: span - 1 };
+      const rowSpan = parseInt($(cell).attr("rowspan") || "1", 10) || 1;
+      const colSpan = parseInt($(cell).attr("colspan") || "1", 10) || 1;
+      for (let c = 0; c < colSpan && col + c < headers.length; c++) {
+        if (rowSpan > 1) {
+          pending[col + c] = { text, rows: rowSpan - 1 };
+        }
+        row[col + c] = text;
       }
-      row.push(text);
+      col += colSpan;
     }
     grid.push(row);
   });
@@ -792,7 +872,7 @@ async function getShowScoringConfig(
   showId: number | null,
 ): Promise<{ expected: number[]; multiplier: number[] }> {
   if (!showId) {
-    return { expected: DEFAULT_EXPECTED, multiplier: DEFAULT_MULTIPLIER };
+    return SCORING_PRESETS[DEFAULT_WEEKS];
   }
   const showRes = await client.query(
     "SELECT name, season FROM show WHERE id = $1",
@@ -800,15 +880,13 @@ async function getShowScoringConfig(
   );
   const show = showRes.rows[0];
   if (!show) {
-    return { expected: DEFAULT_EXPECTED, multiplier: DEFAULT_MULTIPLIER };
+    return SCORING_PRESETS[DEFAULT_WEEKS];
   }
-  const override = loadShowsConfig().find(
+  const config = loadShowsConfig().find(
     (s) => s.name === show.name && s.season === Number(show.season),
   );
-  return {
-    expected: override?.expected ?? DEFAULT_EXPECTED,
-    multiplier: override?.multiplier ?? DEFAULT_MULTIPLIER,
-  };
+  const weeks = config?.weeks ?? DEFAULT_WEEKS;
+  return SCORING_PRESETS[weeks] ?? SCORING_PRESETS[DEFAULT_WEEKS];
 }
 
 async function getScoredPicks(client: Client, leagueId: number) {

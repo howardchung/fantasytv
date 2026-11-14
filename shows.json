@@ -2,24 +2,38 @@
   {
     "name": "The Bachelor",
     "season": 27,
-    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)"
+    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_season_27)",
+    "weeks": 10
   },
   {
     "name": "The Bachelor",
     "season": 28,
-    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_TV_series)_season_28"
+    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_TV_series)_season_28",
+    "weeks": 10
   },
   {
     "name": "The Bachelor",
     "season": 29,
     "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_TV_series)_season_29",
     "imagesUrl": "https://prod.gatekeeper.us-abc.symphony.edgedatg.com/api/ws/pluto/v1/module/tilegroup/3719769?start=0&size=50&authlevel=0&brand=001&device=001&show=SH559030",
-    "expected": [18, 14, 10, 7, 4, 3, 2, 1],
-    "multiplier": [1, 2, 3, 5, 9, 13, 21, 45]
+    "weeks": 8
   },
   {
     "name": "The Bachelor",
     "season": 30,
-    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_TV_series)_season_30"
+    "url": "https://en.wikipedia.org/wiki/The_Bachelor_(American_TV_series)_season_30",
+    "weeks": 10
+  },
+  {
+    "name": "The Bachelorette",
+    "season": 20,
+    "url": "https://en.wikipedia.org/wiki/The_Bachelorette_(American_TV_series)_season_20",
+    "weeks": 8
+  },
+  {
+    "name": "The Bachelorette",
+    "season": 21,
+    "url": "https://en.wikipedia.org/wiki/The_Bachelorette_(American_TV_series)_season_21",
+    "weeks": 9
   }
 ]

@@ -2,6 +2,8 @@ CREATE TABLE show(
     id serial PRIMARY KEY,
     name text,
     season int,
+    lead text,
+    poster text,
     start_date timestamp with time zone,
     end_date timestamp with time zone,
     UNIQUE(name, season)
