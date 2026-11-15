@@ -16,31 +16,31 @@ const SCORING_PRESETS: Record<
 > = {
   6: {
     expected: [14, 10, 7, 4, 2, 1],
-    multiplier: [1, 2, 3, 6, 13, 28],
+    multiplier: [2, 3, 4, 7, 15, 31],
   },
   7: {
     expected: [16, 12, 9, 6, 4, 2, 1],
-    multiplier: [1, 2, 3, 5, 8, 17, 36],
+    multiplier: [2, 3, 4, 6, 9, 17, 35],
   },
   8: {
     expected: [18, 14, 10, 7, 4, 3, 2, 1],
-    multiplier: [1, 2, 3, 5, 9, 13, 21, 45],
+    multiplier: [2, 3, 4, 5, 10, 13, 20, 40],
   },
   9: {
     expected: [18, 15, 12, 9, 7, 4, 3, 2, 1],
-    multiplier: [1, 2, 3, 5, 7, 13, 18, 28, 60],
+    multiplier: [2, 2, 3, 4, 5, 10, 13, 20, 40],
   },
   10: {
     expected: [20, 17, 14, 11, 9, 7, 4, 3, 2, 1],
-    multiplier: [1, 2, 3, 4, 5, 7, 13, 18, 28, 60],
+    multiplier: [2, 2, 3, 4, 5, 6, 11, 14, 22, 44],
   },
   11: {
     expected: [22, 19, 16, 13, 11, 9, 7, 4, 3, 2, 1],
-    multiplier: [1, 2, 3, 4, 5, 7, 10, 18, 25, 39, 80],
+    multiplier: [2, 2, 3, 3, 4, 5, 7, 12, 16, 24, 48],
   },
   12: {
     expected: [24, 21, 18, 15, 13, 11, 9, 7, 4, 3, 2, 1],
-    multiplier: [1, 2, 3, 4, 5, 6, 8, 11, 20, 28, 44, 92],
+    multiplier: [2, 2, 3, 3, 4, 5, 6, 7, 13, 17, 26, 53],
   },
 };
 
@@ -251,17 +251,13 @@ app.post("/picks", requireAuth, async (req, res) => {
     if (!showId) {
       return { error: `Unknown league ${leagueId}` };
     }
-    const [epRes, contRes, existingRes] = await Promise.all([
+    const [epRes, contRes] = await Promise.all([
       client.query("SELECT id, name, airdate FROM episode WHERE show_id = $1", [
         showId,
       ]),
       client.query(
         "SELECT id, eliminated_week FROM contestant WHERE show_id = $1",
         [showId],
-      ),
-      client.query(
-        "SELECT episode_id, contestant_id, is_on FROM pick WHERE uid = $1 AND league_id = $2",
-        [res.locals.uid, leagueId],
       ),
     ]);
 
@@ -283,11 +279,6 @@ app.post("/picks", requireAuth, async (req, res) => {
       elimByContId.set(c.id, c.eliminated_week);
     }
 
-    // Merge existing picks with incoming changes to validate per-week pick limits
-    const merged = new Map<string, { episode_id: number; contestant_id: number; is_on: boolean }>();
-    for (const row of existingRes.rows) {
-      merged.set(`${row.episode_id}:${row.contestant_id}`, row);
-    }
     const sanitized: { episode_id: number; contestant_id: number; is_on: boolean }[] = [];
     for (const item of req.body) {
       const episode_id = Number(item?.episode_id);
@@ -315,26 +306,7 @@ app.post("/picks", requireAuth, async (req, res) => {
           error: `Contestant ${contestant_id} was eliminated before Week ${weekNum}`,
         };
       }
-      const entry = { episode_id, contestant_id, is_on };
-      sanitized.push(entry);
-      merged.set(`${episode_id}:${contestant_id}`, entry);
-    }
-
-    const { expected: showExpected } = await getShowScoringConfig(client, showId);
-    const countByEp = new Map<number, number>();
-    for (const pick of merged.values()) {
-      if (pick.is_on) {
-        countByEp.set(pick.episode_id, (countByEp.get(pick.episode_id) || 0) + 1);
-      }
-    }
-    for (const [epId, count] of countByEp.entries()) {
-      const weekNum = epInfoById.get(epId)?.weekNum;
-      const limit = weekNum ? showExpected[weekNum - 1] : undefined;
-      if (limit !== undefined && count > limit) {
-        return {
-          error: `Week ${weekNum} allows at most ${limit} picks (got ${count})`,
-        };
-      }
+      sanitized.push({ episode_id, contestant_id, is_on });
     }
 
     for (const { episode_id, contestant_id, is_on } of sanitized) {
@@ -924,10 +896,8 @@ async function getScoredPicks(client: Client, leagueId: number) {
     const survived =
       row.eliminated_week === null ||
       (weekNum >= 1 && row.eliminated_week > weekNum);
-    const points =
-      row.guess === true && survived && weekNum >= 1
-        ? (multiplier[weekNum - 1] ?? 0)
-        : 0;
+    const mult = weekNum >= 1 ? (multiplier[weekNum - 1] ?? 0) : 0;
+    const points = row.guess === true ? (survived ? mult : -mult) : 0;
     return { ...row, points };
   });
 }

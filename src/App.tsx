@@ -28,7 +28,7 @@ function authFetch(user: GoogleUser, path: string, init: RequestInit = {}) {
 }
 
 const DEFAULT_EXPECTED = [20, 17, 14, 11, 9, 7, 4, 3, 2, 1];
-const DEFAULT_MULTIPLIER = [1, 2, 3, 4, 5, 7, 13, 18, 28, 60];
+const DEFAULT_MULTIPLIER = [2, 2, 3, 4, 5, 6, 11, 14, 22, 44];
 
 function getWeekNumber(epName: string): number | null {
   const match = epName?.match(/Week (\d+)/);
@@ -387,7 +387,7 @@ function App() {
       const next = new Set(prev);
       if (next.has(contestantId)) {
         next.delete(contestantId);
-      } else if (next.size < maxPicksForWeek) {
+      } else {
         next.add(contestantId);
       }
       return next;
@@ -559,7 +559,7 @@ function App() {
                   Week {wNum} {ep.locked ? "🔒" : ""}
                 </div>
                 <div className="week-tab-meta">
-                  {user ? `${savedCount}/${limit}` : `${limit} picks`} · {mult}pt
+                  {user ? `${savedCount} picked · ` : ""}±{mult}pt
                 </div>
               </button>
             );
@@ -572,9 +572,9 @@ function App() {
                 <h2>{selectedEpisode.name.replace(/^"|"$/g, "")}</h2>
                 <div className="picking-subtitle">
                   {new Date(selectedEpisode.airdate).toLocaleDateString()} ·{" "}
-                  {availableContestants.length} contestants available · Pick{" "}
-                  {maxPicksForWeek} ({weekMultiplier}{" "}
-                  {weekMultiplier === 1 ? "pt" : "pts"} each) ·{" "}
+                  {availableContestants.length} contestants available · ±
+                  {weekMultiplier} {weekMultiplier === 1 ? "pt" : "pts"} per pick
+                  {" · "}
                   {selectedEpisode.locked
                     ? "Locked (8:00 PM PT on airdate)"
                     : "Locks at 8:00 PM PT on airdate"}
@@ -583,7 +583,7 @@ function App() {
               {user ? (
                 <div className="picking-actions">
                   <span className="pick-counter">
-                    Selected: {draftIds.size} / {maxPicksForWeek}
+                    Selected: {draftIds.size}
                   </span>
                   <button
                     className="save-picks-btn"
@@ -737,7 +737,11 @@ function App() {
                         weekLimit > 0 && rowIdx === weekLimit - 1;
                       const weekMult =
                         wNum >= 1 ? (weekConfig.multiplier[wNum - 1] ?? 1) : 0;
-                      const points = isPicked && isSafe ? weekMult : 0;
+                      const points = isPicked
+                        ? isSafe
+                          ? weekMult
+                          : -weekMult
+                        : 0;
                       return (
                         <td
                           key={ep.id}
@@ -759,10 +763,10 @@ function App() {
                               title={
                                 isSafe
                                   ? `Correct pick (+${points} pts)`
-                                  : "Incorrect pick (0 pts)"
+                                  : `Incorrect pick (${points} pts)`
                               }
                             >
-                              {points}
+                              {isSafe ? `+${points}` : points}
                             </span>
                           ) : (
                             <span className="missed-points">0</span>
@@ -782,57 +786,59 @@ function App() {
         {leaderboard.length === 0 ? (
           <div className="leaderboard-empty">No player scores yet.</div>
         ) : (
-          <table className="leaderboard-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Player</th>
-                {episodes.map((ep) => (
-                  <th key={ep.id} className="leaderboard-week">
-                    W{getWeekNumber(ep.name)}
-                  </th>
-                ))}
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const sorted = [...leaderboard].sort(
-                  (a, b) =>
-                    b.score - a.score ||
-                    (a.name || a.uid).localeCompare(b.name || b.uid),
-                );
-                let rank = 1;
-                return sorted.map((entry, idx) => {
-                  if (idx > 0 && entry.score < sorted[idx - 1].score) {
-                    rank = idx + 1;
-                  }
-                  return (
-                    <tr key={entry.uid}>
-                      <td className="leaderboard-rank">#{rank}</td>
-                      <td className="leaderboard-player">
-                        {entry.img && (
-                          <img
-                            className="leaderboard-avatar"
-                            alt=""
-                            src={entry.img}
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        <span>{entry.name || entry.uid}</span>
-                      </td>
-                      {episodes.map((ep) => (
-                        <td key={ep.id} className="leaderboard-week">
-                          {entry.weekly_scores?.[ep.id] ?? 0}
-                        </td>
-                      ))}
-                      <td className="leaderboard-score">{entry.score}</td>
-                    </tr>
+          <div className="leaderboard-table-wrap">
+            <table className="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  {episodes.map((ep) => (
+                    <th key={ep.id} className="leaderboard-week">
+                      W{getWeekNumber(ep.name)}
+                    </th>
+                  ))}
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const sorted = [...leaderboard].sort(
+                    (a, b) =>
+                      b.score - a.score ||
+                      (a.name || a.uid).localeCompare(b.name || b.uid),
                   );
-                });
-              })()}
-            </tbody>
-          </table>
+                  let rank = 1;
+                  return sorted.map((entry, idx) => {
+                    if (idx > 0 && entry.score < sorted[idx - 1].score) {
+                      rank = idx + 1;
+                    }
+                    return (
+                      <tr key={entry.uid}>
+                        <td className="leaderboard-rank">#{rank}</td>
+                        <td className="leaderboard-player">
+                          {entry.img && (
+                            <img
+                              className="leaderboard-avatar"
+                              alt=""
+                              src={entry.img}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          <span>{entry.name || entry.uid}</span>
+                        </td>
+                        {episodes.map((ep) => (
+                          <td key={ep.id} className="leaderboard-week">
+                            {entry.weekly_scores?.[ep.id] ?? 0}
+                          </td>
+                        ))}
+                        <td className="leaderboard-score">{entry.score}</td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
