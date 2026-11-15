@@ -1,15 +1,19 @@
 import fs from "node:fs";
+import { defineConfig, loadEnv } from "vite";
 
-const keyFile = process.env.SSL_KEY_FILE || "./certs/key.pem";
-const certFile = process.env.SSL_CERT_FILE || "./certs/cert.pem";
-const https =
-  fs.existsSync(keyFile) && fs.existsSync(certFile)
-    ? { key: fs.readFileSync(keyFile), cert: fs.readFileSync(certFile) }
-    : undefined;
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const keyFile = env.SSL_KEY_FILE || process.env.SSL_KEY_FILE;
+  const certFile = env.SSL_CERT_FILE || process.env.SSL_CERT_FILE;
+  const https =
+    keyFile && certFile && fs.existsSync(keyFile) && fs.existsSync(certFile)
+      ? { key: fs.readFileSync(keyFile), cert: fs.readFileSync(certFile) }
+      : undefined;
 
-export default {
-  server: {
-    allowedHosts: true,
-    https,
-  },
-};
+  return {
+    server: {
+      allowedHosts: true,
+      https,
+    },
+  };
+});

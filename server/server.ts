@@ -392,9 +392,9 @@ app.post("/league", async (req, res) => {
   res.json(result.rows[0]);
 });
 const port = process.env.PORT || 3000;
-const keyFile = process.env.SSL_KEY_FILE || "./certs/key.pem";
-const certFile = process.env.SSL_CERT_FILE || "./certs/cert.pem";
-if (existsSync(keyFile) && existsSync(certFile)) {
+const keyFile = process.env.SSL_KEY_FILE;
+const certFile = process.env.SSL_CERT_FILE;
+if (keyFile && certFile && existsSync(keyFile) && existsSync(certFile)) {
   https
     .createServer(
       { key: readFileSync(keyFile), cert: readFileSync(certFile) },
