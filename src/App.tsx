@@ -13,7 +13,7 @@ const serverPath = `${window.location.protocol}//${
   import.meta.env.DEV
     ? `${window.location.hostname}:3000`
     : window.location.host
-}`;
+}/api`;
 
 // Sends the signed-in user's Google ID token so the server knows who is calling
 function authFetch(user: GoogleUser, path: string, init: RequestInit = {}) {
