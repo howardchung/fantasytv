@@ -1,6 +1,5 @@
 import * as cheerio from "cheerio";
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import type { Client } from "pg";
 import {
   getDBClient,
@@ -338,17 +337,4 @@ export async function rescore() {
       }
     }
   });
-}
-
-export default async function handler(_req: any, res: any) {
-  await rescore();
-  res.status(200).json({ ok: true });
-}
-
-if (
-  !process.env.VERCEL &&
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  await rescore();
 }

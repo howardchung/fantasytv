@@ -86,6 +86,10 @@ async function resolveLeagueId(
   return latest.rows[0]?.id ?? 1;
 }
 
+app.all("/api/rescore", async (_req, res) => {
+  await rescore();
+  res.json({ ok: true });
+});
 app.get("/api/leagues", async (req, res) => {
   const client = await getDBClient();
   const result = await client.query(

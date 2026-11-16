@@ -4,6 +4,9 @@
       "includeFiles": "api/shows.json"
     }
   },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/server" }
+  ],
   "crons": [
     {
       "path": "/api/rescore",
