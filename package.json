@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.ts",
+    "start": "node api/server.ts",
     "build": "vite build",
     "ui": "vite --host",
     "prettier": "npx prettier --write .",
-    "dev": "node --env-file-if-exists=.env --watch server.ts",
-    "rescore": "node rescore.ts"
+    "dev": "node --env-file-if-exists=.env --watch api/server.ts",
+    "rescore": "node api/rescore.ts"
   },
   "dependencies": {
     "cheerio": "^1.1.2",

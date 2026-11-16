@@ -4,8 +4,10 @@ import cors from "cors";
 import { existsSync, readFileSync } from "node:fs";
 import https from "node:https";
 import { OAuth2Client, type TokenPayload } from "google-auth-library";
+import { rescore } from "./rescore.ts";
 import {
   getDBClient,
+  getPacificParts,
   getScoredPicks,
   getShowIdForLeague,
   getShowScoringConfig,
@@ -345,19 +347,44 @@ app.post("/api/league", async (req, res) => {
   });
   res.json(result.rows[0]);
 });
-const port = process.env.PORT || 3000;
-const keyFile = process.env.SSL_KEY_FILE;
-const certFile = process.env.SSL_CERT_FILE;
-if (keyFile && certFile && existsSync(keyFile) && existsSync(certFile)) {
-  https
-    .createServer(
-      { key: readFileSync(keyFile), cert: readFileSync(certFile) },
-      app,
-    )
-    .listen(port);
-} else {
-  app.listen(port);
+function msUntilNext9pmPacific(now = new Date()): number {
+  const pt = getPacificParts(now);
+  const addDays = pt.hour >= 21 ? 1 : 0;
+  const targetMs = pacificTimeToUtcMs(pt.year, pt.month, pt.day + addDays, 21);
+  return Math.max(1000, targetMs - now.getTime());
 }
+
+function scheduleDailyRescore() {
+  const delay = msUntilNext9pmPacific();
+  setTimeout(async () => {
+    try {
+      await rescore();
+    } catch (err) {
+      console.error("Daily rescore failed:", err);
+    } finally {
+      scheduleDailyRescore();
+    }
+  }, delay);
+}
+
+if (!process.env.VERCEL) {
+  const port = process.env.PORT || 3000;
+  const keyFile = process.env.SSL_KEY_FILE;
+  const certFile = process.env.SSL_CERT_FILE;
+  if (keyFile && certFile && existsSync(keyFile) && existsSync(certFile)) {
+    https
+      .createServer(
+        { key: readFileSync(keyFile), cert: readFileSync(certFile) },
+        app,
+      )
+      .listen(port);
+  } else {
+    app.listen(port);
+  }
+  scheduleDailyRescore();
+}
+
+export default app;
 
 function getEpisodePacificTimeMs(airdate: Date | string, hour: number): number {
   const d = new Date(airdate);

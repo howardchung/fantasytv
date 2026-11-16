@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
 import { Client, type QueryResult } from "pg";
 
 export type ShowConfig = {
@@ -103,7 +102,7 @@ export async function upsertObject(
 
 export function loadShowsConfig(): ShowConfig[] {
   return JSON.parse(
-    readFileSync(path.join(process.cwd(), "shows.json"), "utf8"),
+    readFileSync(new URL("./shows.json", import.meta.url), "utf8"),
   );
 }
 
