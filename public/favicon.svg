@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Stem -->
+  <path
+    d="M32 38 C32 46, 31 53, 30 61"
+    fill="none"
+    stroke="#237a36"
+    stroke-width="4.5"
+    stroke-linecap="round"
+  />
+  <path
+    d="M31.5 39 C31.5 46, 30.8 53, 29.8 60"
+    fill="none"
+    stroke="#40c057"
+    stroke-width="1.3"
+    stroke-linecap="round"
+  />
+
+  <!-- Left leaf -->
+  <path
+    d="M31 52 C21 51, 13 46, 10 38 C19 37, 27 42, 31 52 Z"
+    fill="#2f9e44"
+    stroke="#1b5e27"
+    stroke-width="1.2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M29 50 C22 46, 16 43, 12 39"
+    fill="none"
+    stroke="#69db7c"
+    stroke-width="1.3"
+    stroke-linecap="round"
+  />
+
+  <!-- Right leaf -->
+  <path
+    d="M32 49 C42 48, 50 43, 53 35 C44 34, 36 39, 32 49 Z"
+    fill="#2f9e44"
+    stroke="#1b5e27"
+    stroke-width="1.2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M34 47 C41 43, 47 40, 51 36"
+    fill="none"
+    stroke="#69db7c"
+    stroke-width="1.3"
+    stroke-linecap="round"
+  />
+
+  <!-- Calyx / Sepals -->
+  <path
+    d="M21 35 C25 42, 39 42, 43 35 C38 38, 26 38, 21 35 Z"
+    fill="#237a36"
+  />
+
+  <!-- Rose bloom: back outer petals -->
+  <path
+    d="M32 6 C21 6, 13 13, 13 23 C13 33, 21 40, 32 40 C43 40, 51 33, 51 23 C51 13, 43 6, 32 6 Z"
+    fill="#b80c2c"
+    stroke="#80061d"
+    stroke-width="1.2"
+  />
+
+  <!-- Left cupped outer petal -->
+  <path
+    d="M16 16 C11 22, 13 33, 24 38 C28 39.5, 32 39.5, 35 37.5 C25 35, 20 27, 21 18 Z"
+    fill="#d90429"
+    stroke="#8a0720"
+    stroke-width="1"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right cupped outer petal -->
+  <path
+    d="M48 16 C53 22, 51 33, 40 38 C36 39.5, 32 39.5, 29 37.5 C39 35, 44 27, 43 18 Z"
+    fill="#d90429"
+    stroke="#8a0720"
+    stroke-width="1"
+    stroke-linejoin="round"
+  />
+
+  <!-- Front lower cupped petal -->
+  <path
+    d="M20 26 C20 34, 25 39, 32 39 C39 39, 44 34, 44 26 C39 30, 25 30, 20 26 Z"
+    fill="#ef233c"
+    stroke="#9e0b27"
+    stroke-width="1"
+    stroke-linejoin="round"
+  />
+
+  <!-- Upper inner bloom -->
+  <path
+    d="M19 19 C19 11, 25 7.5, 33 8.5 C40 9.5, 45 14.5, 44 21.5 C42 28, 36.5 31, 30 30 C23.5 29, 19 24.5, 19 19 Z"
+    fill="#ff385c"
+    stroke="#9e0b27"
+    stroke-width="1.1"
+  />
+
+  <!-- Inner spiral folds -->
+  <path
+    d="M24 19 C24 14, 28 11, 33 12 C38 13, 40 17, 39 21 C38 25, 34 27, 30 26 C26 25, 24 22, 25 18 C26 15, 30 14, 33 15 C36 16, 36 19, 34 21 C32 23, 29 22, 29 19 C29 18, 31 17, 32 18"
+    fill="none"
+    stroke="#8f0722"
+    stroke-width="2.1"
+    stroke-linecap="round"
+  />
+
+  <!-- Subtle petal highlight -->
+  <path
+    d="M22.5 16 C24.5 12, 28.5 9.8, 34 10.2"
+    fill="none"
+    stroke="#ff8fa3"
+    stroke-width="1.6"
+    stroke-linecap="round"
+  />
+</svg>
